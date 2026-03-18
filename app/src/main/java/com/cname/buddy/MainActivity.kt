@@ -156,7 +156,7 @@ fun BuddyMainScreen() {
                 val credentialManager = CredentialManager.create(context)
 
                 val googleIdOption = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(true)
+                    .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(BuildConfig.GOOGLE_CLIENT_ID)
                     .setAutoSelectEnabled(true)
                     .build()

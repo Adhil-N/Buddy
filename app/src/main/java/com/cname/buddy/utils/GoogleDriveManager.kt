@@ -95,17 +95,15 @@ class GoogleDriveManager(private val context: Context) {
 
     // --- 2. RESTORE & SMART MERGE ---
     suspend fun restoreFromDrive(email: String): DriveResult = withContext(Dispatchers.IO) {
-        // SAFETY CHECK: Prevent empty emails from crashing the Android Account system!
         if (email.isBlank()) return@withContext DriveResult.Failed
 
         try {
-            // Make sure this uses the shared getDriveService function we fixed earlier!
             val driveService = getDriveService(email)
 
             val fileList = driveService.files().list()
                 .setSpaces("appDataFolder")
                 .setQ("name='buddy_auto_backup.json'")
-                .execute() // <--- This is where it crashed previously
+                .execute()
 
             if (fileList.files.isNotEmpty()) {
                 val fileId = fileList.files[0].id
@@ -115,17 +113,37 @@ class GoogleDriveManager(private val context: Context) {
                 val jsonString = outputStream.toString("UTF-8")
                 val backupData = gson.fromJson(jsonString, AppBackupData::class.java)
 
-                // SMART MERGE: Reset IDs to 0 so Room treats them as new entries
-                if (backupData.finances.isNotEmpty()) db.financeDao().insertAllFinances(backupData.finances.map { it.copy(id = 0) })
-                if (backupData.passwords.isNotEmpty()) db.passwordDao().insertAllPasswords(backupData.passwords.map { it.copy(id = 0) })
-                if (backupData.notes.isNotEmpty()) db.noteDao().insertAllNotes(backupData.notes.map { it.copy(id = 0) })
+                // 1. Fetch current local data for comparison
+                // Use .first() to get the current list from the Flow
+                val localNotes = db.noteDao().getAllNotes().first()
+                val localFinances = db.financeDao().getAllFinances().first()
+                val localPasswords = db.passwordDao().getAllPasswords().first()
+
+                // 2. Filter out duplicates and reset IDs to 0
+                // Logic: Only keep backup items where NONE of the local items match the key content
+
+                val uniqueNotes = backupData.notes.filter { backupNote ->
+                    localNotes.none { it.title == backupNote.title && it.content == backupNote.content }
+                }.map { it.copy(id = 0) }
+
+                val uniqueFinances = backupData.finances.filter { backupFin ->
+                    localFinances.none { it.title == backupFin.title }
+                }.map { it.copy(id = 0) }
+
+                val uniquePasswords = backupData.passwords.filter { backupPass ->
+                    localPasswords.none { it.platform == backupPass.platform && it.username == backupPass.username }
+                }.map { it.copy(id = 0) }
+
+                // 3. Insert only the truly new items
+                if (uniqueNotes.isNotEmpty()) db.noteDao().insertAllNotes(uniqueNotes)
+                if (uniqueFinances.isNotEmpty()) db.financeDao().insertAllFinances(uniqueFinances)
+                if (uniquePasswords.isNotEmpty()) db.passwordDao().insertAllPasswords(uniquePasswords)
 
                 return@withContext DriveResult.Success
             } else {
-                return@withContext DriveResult.Failed // No backup file found
+                return@withContext DriveResult.Failed
             }
         } catch (e: UserRecoverableAuthIOException) {
-            // FIRE THE PERMISSION POPUP! (Just in case they try to Restore before Backing up)
             return@withContext DriveResult.NeedsPermission(e.intent)
         } catch (e: Exception) {
             e.printStackTrace()

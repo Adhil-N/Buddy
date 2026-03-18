@@ -13,7 +13,7 @@ interface PasswordDao {
     @Insert
     suspend fun insertPassword(password: PasswordEntity)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllPasswords(passwords: List<PasswordEntity>)
 
     @Update

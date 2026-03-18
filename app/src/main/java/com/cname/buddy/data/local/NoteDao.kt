@@ -14,7 +14,7 @@ interface NoteDao {
     @Update suspend fun updateNote(note: NoteEntity)
     @Delete suspend fun deleteNote(note: NoteEntity)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllNotes(notes: List<NoteEntity>)
 
     @Query("SELECT * FROM notes ORDER BY id DESC") // Newest first!

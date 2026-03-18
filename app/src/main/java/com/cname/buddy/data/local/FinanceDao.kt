@@ -14,7 +14,7 @@ interface FinanceDao {
     @Insert
     suspend fun insertFinance(finance: FinanceEntity)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllFinances(finances: List<FinanceEntity>)
 
     @Update
